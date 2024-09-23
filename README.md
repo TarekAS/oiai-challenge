@@ -35,12 +35,13 @@ PostgreSQL database with the following requirements:
     - To automate the infrastructure deployment, we will use **Terraform**.
     - We will split the Terraform code into multiple workspaces to manage different parts of the infrastructure separately. This will organize the code better, make Terraform operations faster, and reduce the blast radius of changes.
     - Workspaces as follows:
-      - `terraform/aws/tfstate` for S3 bucket and DynamoDB table to store the Terraform state.
+      - `terraform/aws/_tfstate` for S3 bucket and DynamoDB table to store the Terraform state.
       - `terraform/aws/network` for the VPC, subnets, route tables, internet gateway, NAT gateway, etc.
-      - `terraform/aws/eks` for the EKS cluster and supporting resources.
-      - `terraform/aws/eks-addons` additional helm charts and resources to be installed within the cluster.
+      - `terraform/aws/eks/prod1/infra` for the EKS cluster infrastructure.
+      - `terraform/aws/eks/prod1/k8s` for provisioning resources within the cluster.
       - `terraform/aws/rds` for the RDS instance.
       - `terraform/aws/services/<service>` for the services.
+  - The directory structure (`terraform/aws/<cluster>`) allows for easily adding new clusters to the IaC, while reducing the blast radius of terraform applies to individual clusters.
 4. **Describe the solution to automate the microservices deployment and prepare the most important snippets of code/configuration**
     - TODO
 5. **Describe the release lifecycle for the different components**
