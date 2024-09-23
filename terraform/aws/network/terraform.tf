@@ -2,7 +2,7 @@ terraform {
   backend "s3" {
     bucket         = "oiai-prod-terraform-state"
     dynamodb_table = "oiai-prod-terraform-state-lock"
-    key            = "oiai/prod/infra"
+    key            = "oiai/prod/network"
     region         = "eu-west-1"
     encrypt        = true
   }
