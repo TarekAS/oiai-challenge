@@ -40,6 +40,7 @@ PostgreSQL database with the following requirements:
       - `terraform/aws/eks/prod1/infra` for the EKS cluster infrastructure.
       - `terraform/aws/eks/prod1/k8s` for provisioning resources within the cluster.
       - `terraform/aws/rds` for the RDS instance.
+      - `terraform/aws/bastion` for the SSM bastion to be used to securly connect to DBs in private subnets.
       - `terraform/aws/services/<service>` for the services.
   - The directory structure (`terraform/aws/<cluster>`) allows for easily adding new clusters to the IaC, while reducing the blast radius of terraform applies to individual clusters.
 4. **Describe the solution to automate the microservices deployment and prepare the most important snippets of code/configuration**
