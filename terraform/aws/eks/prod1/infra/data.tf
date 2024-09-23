@@ -25,16 +25,6 @@ data "aws_subnets" "main_public" {
   }
 }
 
-data "aws_security_groups" "alb" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.main.id]
-  }
-  tags = {
-    "Name" = "eks-node"
-  }
-}
-
 data "aws_acm_certificate" "oiai" {
   domain      = "oiai.com"
   types       = ["AMAZON_ISSUED"]
