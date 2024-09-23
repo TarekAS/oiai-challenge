@@ -1,0 +1,1 @@
+/Users/tot/wrkspc/interviews/oiai-challenge/terraform/aws/_common/versions.tf
