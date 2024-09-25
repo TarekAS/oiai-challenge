@@ -33,7 +33,7 @@ PostgreSQL database with the following requirements:
       - Worker Nodes (EC2): kubelet, kube-proxy, container runtime.
 3. **Describe the solution to automate the infrastructure deployment and prepare the most important snippets of code/configuration**
     - To automate the infrastructure deployment, we will use **Terraform**.
-    - We will split the Terraform code into multiple workspaces to manage different parts of the infrastructure separately. This will organize the code better, make Terraform operations faster, and reduce the blast radius of changes.
+    - We will split the Terraform infra code into multiple workspaces to manage different parts of the infrastructure separately. This will organize the code better, make Terraform operations faster, and reduce the blast radius of changes.
     - Workspaces as follows:
       - `terraform/aws/_tfstate` for S3 bucket and DynamoDB table to store the Terraform state.
       - `terraform/aws/network` for the VPC, subnets, route tables, internet gateway, NAT gateway, etc.
@@ -41,17 +41,31 @@ PostgreSQL database with the following requirements:
       - `terraform/aws/eks/prod1/k8s` for provisioning resources within the cluster.
       - `terraform/aws/rds` for the RDS instance.
       - `terraform/aws/bastion` for the SSM bastion to be used to securly connect to DBs in private subnets.
-      - `services/<service>/terraform` for the services.
-        - This directory contains the high level resources required by the service itself, such as Kubernetes resources (Deployment, Service, etc.) and any necessary high-level AWS resources (SQS queues, SNS topics, etc.).
-        - These resources share the same lifecycle of the service itself, and are therefore deployed using the CI/CD pipeline (github actions).
-        - This is why they are in the same parent directory of the application code itself. This code is owned by the service owners, not the infra teams.
-        - This terraform code is not wrapped into a Terraform code in order not to prematurely abstract it and to allow more flexibility and transparency to the end user.
   - The directory structure (`terraform/aws/<cluster>`) allows for easily adding new clusters to the IaC, while reducing the blast radius of terraform applies to individual clusters.
 4. **Describe the solution to automate the microservices deployment and prepare the most important snippets of code/configuration**
-    - TODO
+    - The directory `services/<service>/terraform` contains the service-level resources.
+      - This directory contains the high level resources required by the service itself, such as Kubernetes resources (Deployment, Service, etc.) and any necessary high-level AWS resources (SQS queues, SNS topics, etc.).
+      - These resources share the same lifecycle of the service itself, and are therefore deployed using the CI/CD pipeline (github actions).
+      - This is why they are in the same parent directory of the application code itself. This code is owned by the service owners, not the infra teams.
+      - This terraform code is not wrapped into a Terraform module in order not to prematurely abstract it and to allow more flexibility and transparency to the end user.
 5. **Describe the release lifecycle for the different components**
-    - TODO
+    - Services (backendsvc, frontendsvc)
+      - The service resources (i.e. kubernetes manfiests) share the same lifecyle as the code itself, and is deployed using the GitHub Actions pipeline.
+      - Since the Kubernetes Deployment manifest is part of the Terraform code, deploying it leads to the deployment of any new versions of the service.
+    - Infra/DB
+      - Deployed via manual `terraform apply`.
+      - Uses the local aws profile for authentication.
+      - If infra code CI is needed in the future, I would connect the repo to Terraform Cloud to automate the deployments.
 6. **Describe the testing approach for the infrastructure**
-    - TODO
+    - Testing infrastructure code itself would be done via deploying to a pre-prod environment first (e.g. by creating new infra in `terraform/aws/dev`).
+    - Testing Kubernetes cluster upgrades, or a new version of any critical component within, is done by spinning up a new Kubernetes cluster (e.g. `terraform/aws/prod/eks/prod2`), testing it either manually or via a test suite (like kuberhealthy). If it is acceptable, replace the existing cluster with it, either by changing ALB targetgroup, or Route53 weighted routing (not shown here).
+    - Terraform unit tests can also be implemented on frequently used and actively maintained modules (not shown here).
 7. **Describe the monitoring approach for the solution**
-    - TODO
+    - Decision is to use 3rd party observability provider Grafana Cloud for the following reasons:
+      - Prometheus-based monitoring tools work best with Kubernetes
+      - Grafana Cloud relies on open-source components, so switching back to self-managed observability stack is easy if ever needed (e.g. costs or data residency concerns).
+      - Grafana dashboards are cool. Community/official dashboard templates are available for almost anything designed to be deployed on kubernetes.
+    - How the monitoring solution works:
+      - Grafana Agent (deployed as helm chart) collects metrics/logs/traces and forwards them to grafana cloud.
+      - There, I would build dashboards around the infra that combine all this data.
+      - I would invest time writing Alerts/Pages and routing them to the correct OnCall team.
