@@ -41,7 +41,11 @@ PostgreSQL database with the following requirements:
       - `terraform/aws/eks/prod1/k8s` for provisioning resources within the cluster.
       - `terraform/aws/rds` for the RDS instance.
       - `terraform/aws/bastion` for the SSM bastion to be used to securly connect to DBs in private subnets.
-      - `terraform/aws/services/<service>` for the services.
+      - `services/<service>/terraform` for the services.
+        - This directory contains the high level resources required by the service itself, such as Kubernetes resources (Deployment, Service, etc.) and any necessary high-level AWS resources (SQS queues, SNS topics, etc.).
+        - These resources share the same lifecycle of the service itself, and are therefore deployed using the CI/CD pipeline (github actions).
+        - This is why they are in the same parent directory of the application code itself. This code is owned by the service owners, not the infra teams.
+        - This terraform code is not wrapped into a Terraform code in order not to prematurely abstract it and to allow more flexibility and transparency to the end user.
   - The directory structure (`terraform/aws/<cluster>`) allows for easily adding new clusters to the IaC, while reducing the blast radius of terraform applies to individual clusters.
 4. **Describe the solution to automate the microservices deployment and prepare the most important snippets of code/configuration**
     - TODO
