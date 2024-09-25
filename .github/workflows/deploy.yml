@@ -1,0 +1,72 @@
+name: deploy
+
+run-name: Deploy to ${{ inputs.environment }}
+
+on:
+  # Enable manual trigger for the workflow.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment for deployment."
+        type: environment
+        required: true
+  # Allows this workflow to be called from other workflows.
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+
+# Ensure that only one deployment runs at a time on the target environment.
+concurrency:
+  group: deploy ${{ inputs.environment }}
+
+permissions:
+  # required to login to AWS via OIDC.
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID}}:role/iam-github-oidc-${{ vars.SERVICE_NAME }}-deploy
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.0"
+
+      - name: Terraform fmt
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        run: |
+          # Dynamically determine terraform state backend based on service name and environment.
+          terraform init \
+            -backend-config="encrypt=true" \
+            -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}-terraform-state" \
+            -backend-config="key=services/${{ vars.TFSTATE_KEY }}" \
+            -backend-config="dynamodb_table=${{ vars.TFSTATE_BUCKET }}-terraform-state-lock"
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_image: REDACTED.dkr.ecr.eu-west-1.amazonaws.com/${{ vars.SERVICE_NAME }}:${{ github.sha }}
+        run: terraform apply -lock=false -auto-approve -input=false -var-file=tfvars/${{ vars.TF_VARS_FILE }}

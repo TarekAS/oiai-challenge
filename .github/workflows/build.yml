@@ -1,0 +1,37 @@
+name: build
+
+on:
+  workflow_call:
+
+permissions:
+  # required to login to AWS via OIDC.
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::REDACTED:role/iam-github-oidc-${{ vars.SERVICE_NAME }}-repo-ecr
+          aws-region: eu-west-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push docker image to ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.SERVICE_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t ${{ vars.SERVICE_NAME }} -f Dockerfile .
+          docker tag ${{ vars.SERVICE_NAME }}:latest $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
