@@ -42,12 +42,91 @@ PostgreSQL database with the following requirements:
       - `terraform/aws/rds` for the RDS instance.
       - `terraform/aws/bastion` for the SSM bastion to be used to securly connect to DBs in private subnets.
   - The directory structure (`terraform/aws/<cluster>`) allows for easily adding new clusters to the IaC, while reducing the blast radius of terraform applies to individual clusters.
+
+This deploys a new EKS cluster.
+```terraform
+# terraform/aws/prod/eks/prod1/infra
+module "eks_prod_1" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "20.2.1"
+
+  cluster_name    = "prod-1"
+  cluster_version = "1.30"
+...
+}
+```
+This bootstraps the EKS cluster.
+```terraform
+# terraform/aws/prod/eks/prod1/k8s
+module "eks_addons" {
+  source        = "../../../../../modules/eks-addons"
+  cluster_name  = "prod-1"
+  load_balancer = "prod-1"
+  vpc_name      = "main"
+  ...
+}
+```
+
 4. **Describe the solution to automate the microservices deployment and prepare the most important snippets of code/configuration**
     - The directory `services/<service>/terraform` contains the service-level resources.
       - This directory contains the high level resources required by the service itself, such as Kubernetes resources (Deployment, Service, etc.) and any necessary high-level AWS resources (SQS queues, SNS topics, etc.).
       - These resources share the same lifecycle of the service itself, and are therefore deployed using the CI/CD pipeline (github actions).
       - This is why they are in the same parent directory of the application code itself. This code is owned by the service owners, not the infra teams.
       - This terraform code is not wrapped into a Terraform module in order not to prematurely abstract it and to allow more flexibility and transparency to the end user.
+
+The Terraform configuration responsible for configuring the application code deployments:
+```terraform
+# services/backend/terraform/main.tf
+resource "kubernetes_deployment_v1" "this" {
+  metadata {
+    name        = local.name
+    namespace   = var.namespace
+    labels      = local.default_labels
+    annotations = {}
+  }
+  spec {
+    selector {
+      match_labels = {
+        app = local.name
+      }
+    }
+
+    template {
+      metadata {
+        labels = local.default_labels
+      }
+
+      spec {
+        node_selector = {}
+        container {
+          name    = "backendsvc"
+          image   = var.image # This is set by GitHub Actions
+          args    = []
+          command = []
+...
+}
+```
+It is built and deployed by the GitHub Actions CI workflow, which sets the correct enviornment variables on apply.
+```yaml
+# .github/workflows/deploy.yml
+- name: Terraform Init
+  run: |
+    # Dynamically determine terraform state backend based on service name and environment.
+    terraform init \
+      -backend-config="encrypt=true" \
+      -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}-terraform-state" \
+      -backend-config="key=services/${{ vars.TFSTATE_KEY }}" \
+      -backend-config="dynamodb_table=${{ vars.TFSTATE_BUCKET }}-terraform-state-lock"
+
+- name: Terraform Validate
+  run: terraform validate -no-color
+
+- name: Terraform Apply
+  env:
+    TF_VAR_image: REDACTED.dkr.ecr.eu-west-1.amazonaws.com/${{ vars.SERVICE_NAME }}:${{ github.sha }}
+  run: terraform apply -lock=false -auto-approve -input=false -var-file=tfvars/${{ vars.TF_VARS_FILE }}
+```
+
 5. **Describe the release lifecycle for the different components**
     - Services (backendsvc, frontendsvc)
       - The service resources (i.e. kubernetes manfiests) share the same lifecyle as the code itself, and is deployed using the GitHub Actions pipeline.
